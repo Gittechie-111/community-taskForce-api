@@ -22,7 +22,7 @@ class Project:
             return None
         try:
             cursor = db.cursor(dictionary=True)
-            cursor.execute("INSERT VALUES INTO projects (title, description, location, start_date, end_date, created_by) VALUES(%s, %s, %s, %s, %s, %s)", (title, description, location, start_date, end_date, created_by))
+            cursor.execute("INSERT INTO projects (title, description, location, start_date, end_date, created_by) VALUES(%s, %s, %s, %s, %s, %s)", (title, description, location, start_date, end_date, created_by))
             db.commit()
             project_id = cursor.lastrowid
             cursor.close()
@@ -40,12 +40,12 @@ class Project:
         try:
             cursor = db.cursor(dictionary=True)
             cursor.execute("SELECT p.*, u.username as creator_name FROM " \
-            "projects p LEFT JOIN users u ON p.created_by = u.id WHERE id=%s", (project_id,))
+            "projects p LEFT JOIN users u ON p.created_by = u.id WHERE p.id=%s", (project_id,))
         # p.* = All columns from projects table
         # u.username as creator_name = Get the creator's username from users table
         # LEFT JOIN = Connect projects to users based on created_by = users.id
         # Result: Project info + the name of who created it!
-            project = cursor.lastrowid
+            project = cursor.fetchone()
             cursor.close()
             return project
         except Error as e:
@@ -63,17 +63,17 @@ class Project:
             SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) as completed_tasks
             FROM projects p 
             LEFT JOIN users u ON p.created_by = u.id
-            LEFT JOIN tasks ON p.id = t.project_id"""
+            LEFT JOIN tasks t ON p.id = t.project_id"""
             #A conditional query builder that changes SQL based on whether you want to filter by status or not
             if status:
                 #if status is set, execute this query
-                query += "WHERE p.status=%s"
+                query += " WHERE p.status=%s"
                 params = (status,)
                 #The params tuple provides the values for the %s placeholders:
             else:
                 params =()
             #Group and order
-            query += "GROUP BY P.id ORDER BY created_at DESC" #combines all tasks for each product into one row and shows the newest first
+            query += " GROUP BY p.id ORDER BY created_at DESC" #combines all tasks for each product into one row and shows the newest first
             cursor.execute(query, params)
             projects = cursor.fetchall()
             #Calculate percentage completion
@@ -81,11 +81,11 @@ class Project:
                 if project['total_tasks'] > 0:
                     project['completion_percentage'] = project['completed_tasks'] / project['total_tasks'] *100
                 else:
-                    project['completed_percentage'] = 0
-                return projects
+                    project['completion_percentage'] = 0
+            return projects
         except Error as e:
             print(f"Error in getting all projects: {e}")
-            return []
+        return []
         
     @staticmethod
     def update(project_id, data):
@@ -109,6 +109,7 @@ class Project:
             cursor.execute(query, values)
             db.commit()
             cursor.close()
+            return Project.get_by_id(project_id)
         except Error as e:
             print(f"Error in updating projects: {e}")
             db.rollback()
@@ -120,7 +121,7 @@ class Project:
         if not db:
             return None
         try:
-            cursor = db.cursor(dicionary=True)
+            cursor = db.cursor(dictionary=True)
             cursor.execute("DELETE FROM projects WHERE id=%s", (project_id,))
             affected = cursor.rowcount #No of rows deleted
             db.commit()
